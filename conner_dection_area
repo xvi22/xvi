@@ -1,0 +1,68 @@
+import cv2
+import numpy as np
+from robomaster import robot
+
+area=[]
+xposition = []
+xposition_counter = -1
+setcounter = 0
+def frame_capture():
+    result = True
+    while (result):
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+        cv2.imwrite("NewPicture.jpg", img)
+        result = False
+def GetIndicesOf(targetList, value):
+    indices = []
+    for i in range(len(targetList)):
+        if targetList[i] == value:
+            indices.append(i)
+
+    return indices
+
+
+if __name__ == '__main__':
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+
+    ep_camera.start_video_stream(display=False)
+    img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+
+
+    edges = cv2.Canny(img, 10, 200)
+    cv2.imshow('edges',edges)
+
+
+    indices = np.where(edges != [0])
+    coordinates = zip(indices[0], indices[1])
+
+    xList = []
+    Y = []
+    element_y = list(set(indices[1]))
+
+    for cordY in element_y:
+        yPos = GetIndicesOf(indices[1], cordY)
+        for y in yPos:
+            xList.append(indices[0][y])
+            maxlistx=max(xList)
+            minlistx=min(xList)
+            Range=maxlistx-minlistx
+
+
+            for counter in range(minlistx,maxlistx):
+                xposition_counter = xposition_counter + 1
+                xposition.append(counter)
+                xposition.append(150)
+                area.append(xposition)
+                xposition=[]
+print('area',area)
+print(xposition_counter)
+
+# print(xList)
+
+
+cv2.waitKey(0)
+print('done')
