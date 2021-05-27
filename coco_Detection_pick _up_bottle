@@ -1,0 +1,297 @@
+import cv2
+from robomaster import robot
+import time
+from math import atan ,sin, cos, radians, pi
+import math
+from queue import *
+
+from PIL import Image
+error = 0
+def angle():
+    global T0
+    adjacent = float(distance)
+    opposite = float(error)
+    print('adjacent',adjacent)
+    print('opposite',opposite)
+    print('adjacent,opposite',adjacent,opposite)
+    angle = atan(opposite/adjacent)
+    angle=math.degrees(angle)
+    angle = math.trunc(angle)
+    print('distance',distance)
+    print('angle',angle)
+    T0 = angle
+def sub(sub_info):
+    status = sub_info
+    print("gripper&arm status:{0}.".format(status))
+def arm_movement():
+
+    ep_arm.move(x=180, y=0).wait_for_completed()
+    ep_arm.move(x=0, y=15).wait_for_completed()
+    ep_arm.move(x=180, y=0).wait_for_completed()
+def speed_setting():
+
+    global Vd , key_3
+    if distance >= 2000:
+        Vd = 100
+        print('speed mode 1')
+    elif 500 <= distance <= 1999:
+        print('speed mode 2')
+        Vd = 50
+    elif 120 <= distance <= 499:
+        Vd = 30
+        print('speed mode 3')
+    elif distance < 120:
+        Vd = 0
+        print('speed mode 4')
+        key_3 = 1
+    # elif distance<80:
+def pcontrol_side_to_side():
+    global key_2
+    if 400 <= error <= 500:
+        pcontrol_speed = 50
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move1')
+    elif 300 <= error <= 399:
+        pcontrol_speed = 40
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move2')
+    elif 200 <= error <= 299:
+        pcontrol_speed = 35
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move3')
+    elif 40 <= error <= 199:
+        pcontrol_speed = 15
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move 4')
+
+    elif -40 >= error >= -199:
+        pcontrol_speed = -15
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -4')
+    elif -200 >= error >= -299:
+        pcontrol_speed = -35
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -3')
+    elif -300 >= error >= -399:
+        pcontrol_speed = -40
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -2')
+    elif -400 >= error >=  -500:
+        pcontrol_speed = -50
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move-1')
+    elif -39 <= error <= 39:
+        pcontrol_speed = 0
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        key_2 = 1
+        pass
+    else:
+        print('object not found')
+        pass
+def pid_forward():
+    Vo = 0.1
+    # T0 =  Enter your angle in degrees for direction
+    # Vd =  Enter your max Wheel RPM
+    # Vo =  Turning Factor - use low numbers to avoid spinning, 0 is straight
+
+    V1 = Vd * (sin(radians(T0) + pi / 4) + Vo)
+    V2 = Vd * (cos(radians(T0) + pi / 4) - Vo)
+    V3 = Vd * (cos(radians(T0) + pi / 4) + Vo)
+    V4 = Vd * (sin(radians(T0) + pi / 4) - Vo)
+    print('v1 v2 v3 v4 ',V1,V2,V3,V4)
+
+    ep_chassis.drive_wheels(w1=V1, w2=V2, w3=V3, w4=V4)
+def detection():
+    detected = 0
+    global orientation
+    global error
+    global key
+    global img
+    thres = 0.51 # Threshold to detect object
+    # img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
+    while detected == 0:
+        try:
+            img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
+
+        except Empty:
+            pass
+
+
+        # print('one',img.size)
+        # if img.size == 0:
+        #     print('emp')
+        classNames= []
+        classFile = 'coco.names'
+        with open(classFile,'rt') as f:
+            classNames = f.read().rstrip('\n').split('\n')
+
+        configPath = 'ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+        weightsPath = 'frozen_inference_graph.pb'
+
+        net = cv2.dnn_DetectionModel(weightsPath,configPath)
+        net.setInputSize(320,320)
+        net.setInputScale(1.0/ 127.5)
+        net.setInputMean((127.5, 127.5, 127.5))
+        net.setInputSwapRB(True)
+
+
+        classIds, confs, bbox = net.detect(img,confThreshold=thres)
+        print('classids,bbox',classIds,bbox)
+
+
+        if len(classIds) != 0:
+            key = 0
+            for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
+                cv2.rectangle(img,box,color=(0,255,0),thickness=2)
+                cv2.circle(img,(650,360), 5, (0,0,255), -1)
+
+
+                cv2.putText(img,classNames[classId-1].upper(),(box[0]+10,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+                cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+            if (len(classIds)) ==1:
+                if classId == 44:
+                    detected = 1
+                    key = 1
+                    print('path 1')
+                    objectymid = (bbox[0][1]+((bbox[0][3])/2))
+                    objectydiffy = float(bbox[0][1]+((bbox[0][3])/2))
+                    objectymid = bbox[0][3] + objectymid
+
+                    objectxmid = (bbox[0][0] +((bbox[0][2])/2))
+                    objectydiffx = float(bbox[0][0] +((bbox[0][2])/2))
+                    objectxmid = bbox[0][2] + objectxmid
+                    # print('objectydiffy',type(objectydiffy))
+                    # print('objectydiffx',type(objectydiffx))
+                    # print('(objectydiffx)(objectydiffy)',objectydiffx,objectydiffy)
+
+                    if abs(objectydiffx) > abs(objectydiffy):
+                        orientation = 0
+                        print('orientation',orientation)
+                    elif abs(objectydiffx) < abs(objectydiffy):
+                        orientation = 1
+                        print('orientation',orientation)
+                    else:
+                        print('why')
+                    error = 640 - objectydiffx
+                    print('error',error)
+
+
+
+            elif (len(classIds)) > 1:
+                print('path 2')
+                indices = []
+
+                for i in range(len(classIds)):
+                    if classIds[i] == 44:
+                        detected = 1
+                        print('there is a 44 in ',i)
+                        indices.append(i)
+                        print('indices',indices)
+                        X=indices[0]
+
+                        objectymid = (bbox[X][1]+((bbox[X][3])/2))
+                        objectydiffy = float(bbox[X][1]+((bbox[X][3])/2))
+                        objectymid = bbox[X][3] + objectymid
+
+                        objectxmid = (bbox[X][0] +((bbox[X][2])/2))
+                        objectydiffx = float(bbox[X][0] +((bbox[X][2])/2))
+                        objectxmid = bbox[X][2] + objectxmid
+
+                        key = 1
+                        error = 640 - objectydiffx
+                        print('error',error)
+                        if objectydiffx > objectydiffy:
+                            orientation = 0
+                            print('orientation',orientation)
+                        elif objectydiffx < objectydiffy:
+                            orientation = 1
+                            print('orientation',orientation)
+
+                    else:
+                        pass
+
+    # print('key',key)
+    cv2.imshow("Output",img)
+    cv2.waitKey(1) & 0xFF == ord('l')
+
+    # cv2.waitKey(0)
+def sub_data_handler(sub_info):
+    global distance
+    distance = sub_info[0]
+    distance = int(distance)
+def close_pick_up():
+    ep_gripper.sub_status(freq=5, callback=sub)
+    ep_gripper.close()
+    time.sleep(3)
+    ep_gripper.unsub_status()
+def open_pickup():
+    ep_gripper.sub_status(freq=5, callback=sub)
+    ep_gripper.open()
+    time.sleep(3)
+    ep_gripper.unsub_status()
+def dectecion_bottle():
+    try:
+        while True:
+
+            detection() #get error
+
+            pcontrol_side_to_side() #robo middle of bottle
+
+            if key_2 == 1:
+                print('completed side to side prpgrame ')
+                break
+            elif key_2 == 0:
+                pass
+        print('bottle in middle')
+        time.sleep(1)
+        while True:
+            detection()
+            speed_setting() #set speed
+            print('vd',Vd)
+            print('key',key)
+            if key == 1:
+                angle()
+                pid_forward() #move forard
+                print('key_3',key_3)
+                if key_3 == 1:
+                    close_pick_up()
+                    break
+
+            elif key == 0:
+                print('moving backward')
+                # ep_chassis.move(x=0.1, y=0, z=0, xy_speed=0.05).wait_for_completed()
+
+    except:
+        pass
+    print('done ')
+
+
+if __name__ == '__main__':
+    distance = 0
+    Vd = 0
+    key_2 = 0
+    key_3 = 0
+
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+    ep_servo = ep_robot.servo
+    ep_sensor = ep_robot.sensor
+    ep_chassis = ep_robot.chassis
+    ep_arm = ep_robot.robotic_arm
+    ep_gripper = ep_robot.gripper
+
+    print('starting')
+
+
+    ep_camera.start_video_stream(display=False) #turn on cam
+    ep_sensor.sub_distance(freq=1, callback=sub_data_handler) #turn on sensor
+    time.sleep(1)
+    while True:
+        detection()
+        arm_movement()
+        open_pickup()
+        dectecion_bottle()
