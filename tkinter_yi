@@ -1,0 +1,744 @@
+from tkinter import *
+from PIL import ImageTk,Image
+from scipy.io.wavfile import write
+from robomaster import robot
+from math import atan ,sin, cos, radians, pi
+from queue import *
+from PIL import Image
+from pydub import AudioSegment
+from pydub import AudioSegment
+import  pyttsx3
+import math
+import threading
+import time
+import wave
+import sounddevice as sd
+import cv2
+global keyboard
+x = 0
+error = 0
+def distancepc():
+    if distance > 1000:
+        engine = pyttsx3.init()
+        engine.say('object out of sensor range please got closer or aim the sensor')
+        engine.runAndWait()
+        print('done distance ')
+    else:
+        engine = pyttsx3.init()
+        engine.say('object distance is {} millimetre '.format(distance))
+        engine.runAndWait()
+def distancerobot():
+    global sound
+    engine = pyttsx3.init()
+    engine.setProperty("rate", 90)
+    if distance > 1000:
+        text = 'object out of sensor range please got closer or aim the sensor'
+        engine.save_to_file(text,'speech.wav')#save wav file
+        print('measuring ...')
+        engine.runAndWait()
+        ep_robot.play_audio('speech.wav').wait_for_completed()#play wav file from robot
+        print('done ')
+
+    else:
+        text = 'object distance is {} millimetre '.format(distance)
+        engine.save_to_file(text,'speech.wav')#save wav file
+        print('measuring ...')
+        engine.runAndWait()
+        ep_robot.play_audio('speech.wav').wait_for_completed()#play wav file from robot
+        print('done ')
+def angle():
+    global T0
+    adjacent = float(distance)
+    opposite = float(error)
+    print('adjacent',adjacent)
+    print('opposite',opposite)
+    print('adjacent,opposite',adjacent,opposite)
+    angle = atan(opposite/adjacent)
+    angle=math.degrees(angle)
+    angle = math.trunc(angle)
+    print('distance',distance)
+    print('angle',angle)
+    T0 = angle
+def sub(sub_info):
+    status = sub_info
+    print("gripper&arm status:{0}.".format(status))
+def arm_movement():
+
+    ep_arm.move(x=180, y=0).wait_for_completed()
+    ep_arm.move(x=0, y=10).wait_for_completed()
+    ep_arm.move(x=180, y=0).wait_for_completed()
+def speed_setting():
+    global Vd , key_3
+    if distance >= 2000:
+        Vd = 100
+        print('speed mode 1')
+    elif 500 <= distance <= 1999:
+        print('speed mode 2')
+        Vd = 50
+    elif 120 <= distance <= 499:
+        Vd = 30
+        print('speed mode 3')
+    elif distance < 140:
+        Vd = 0
+        print('speed mode 4')
+        key_3 = 1
+    # elif distance<80:
+def pcontrol_side_to_side():
+    global key_2
+    if 400 <= error <= 500:
+        pcontrol_speed = 50
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move1')
+    elif 300 <= error <= 399:
+        pcontrol_speed = 40
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move2')
+    elif 200 <= error <= 299:
+        pcontrol_speed = 25
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move3')
+    elif 40 <= error <= 199:
+        pcontrol_speed = 15
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move 4')
+
+    elif -40 >= error >= -199:
+        pcontrol_speed = -15
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -4')
+    elif -200 >= error >= -299:
+        pcontrol_speed = -25
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -3')
+    elif -300 >= error >= -399:
+        pcontrol_speed = -40
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move -2')
+    elif -400 >= error >=  -500:
+        pcontrol_speed = -50
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('pcontrol_side_to_side move-1')
+    elif -39 <= error <= 39:
+        pcontrol_speed = 0
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        key_2 = 1
+        pass
+    else:
+        pcontrol_speed = 0
+        ep_chassis.drive_wheels(w1=pcontrol_speed, w2=-pcontrol_speed, w3=pcontrol_speed, w4=-pcontrol_speed)
+        print('object not found')
+        pass
+def pid_forward():
+    Vo = 0.1
+    # T0 =  Enter your angle in degrees for direction
+    # Vd =  Enter your max Wheel RPM
+    # Vo =  Turning Factor - use low numbers to avoid spinning, 0 is straight
+
+    V1 = Vd * (sin(radians(T0) + pi / 4) + Vo)
+    V2 = Vd * (cos(radians(T0) + pi / 4) - Vo)
+    V3 = Vd * (cos(radians(T0) + pi / 4) + Vo)
+    V4 = Vd * (sin(radians(T0) + pi / 4) - Vo)
+    print('v1 v2 v3 v4 ',V1,V2,V3,V4)
+
+    ep_chassis.drive_wheels(w1=V1, w2=V2, w3=V3, w4=V4)
+def dectectedbottle():
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 10)
+        text  = 'bottle dectected '
+        engine.save_to_file(text,'bottle.wav')
+        engine.runAndWait()
+        ep_robot.play_audio(filename="bottle.wav").wait_for_completed()
+        print('hi')
+def dectectedpeople():
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 10)
+        text  = 'people dectected please be careful'
+        engine.save_to_file(text,'people.wav')
+        engine.runAndWait()
+        ep_robot.play_audio(filename="people.wav").wait_for_completed()
+        print('hi')
+def detection():
+    global error
+    global key
+    global img
+    # global failcounter
+    # failcounter = 0
+    thres = 0.50 # Threshold to detect object
+    try:
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
+
+    except Empty:
+        pass
+
+    classNames= []
+    classFile = 'coco.names'
+    with open(classFile,'rt') as f:
+        classNames = f.read().rstrip('\n').split('\n')
+
+    configPath = 'ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+    weightsPath = 'frozen_inference_graph.pb'
+
+    net = cv2.dnn_DetectionModel(weightsPath,configPath)
+    net.setInputSize(320,320)
+    net.setInputScale(1.0/ 127.5)
+    net.setInputMean((127.5, 127.5, 127.5))
+    net.setInputSwapRB(True)
+
+
+    classIds, confs, bbox = net.detect(img,confThreshold=thres)
+    print('classids,bbox',classIds,bbox)
+
+
+
+    if len(classIds) != 0:
+        key = 0
+
+        for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
+            cv2.rectangle(img,box,color=(0,255,0),thickness=2)
+            cv2.circle(img,(650,360), 5, (0,0,255), -1)
+
+
+            cv2.putText(img,classNames[classId-1].upper(),(box[0]+10,box[1]+30),
+                        cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+            cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
+                        cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+        if (len(classIds)) ==1:
+            if classId == 44:
+                key = 1
+                print('path 1')
+                objectymid = (bbox[0][1]+((bbox[0][3])/2))
+                objectydiffy = float(bbox[0][1]+((bbox[0][3])/2))
+                objectymid = bbox[0][3] + objectymid
+
+                objectxmid = (bbox[0][0] +((bbox[0][2])/2))
+                objectydiffx = float(bbox[0][0] +((bbox[0][2])/2))
+                objectxmid = bbox[0][2] + objectxmid
+                # print('objectydiffy',type(objectydiffy))
+                # print('objectydiffx',type(objectydiffx))
+                # print('(objectydiffx)(objectydiffy)',objectydiffx,objectydiffy)
+
+                error = 640 - objectydiffx
+                print('error',error)
+            elif classId != 44:
+                # failcounter = failcounter + 1
+                # if failcounter ==  10:
+                #     print('fail')
+                pass
+
+
+
+        elif (len(classIds)) > 1:
+            print('path 2')
+            indices = []
+
+            for i in range(len(classIds)):
+                if classIds[i] == 44:
+                    print('there is a 44 in ',i)
+                    indices.append(i)
+                    print('indices',indices)
+                    X=indices[0]
+
+                    objectymid = (bbox[X][1]+((bbox[X][3])/2))
+                    objectydiffy = float(bbox[X][1]+((bbox[X][3])/2))
+                    objectymid = bbox[X][3] + objectymid
+
+                    objectxmid = (bbox[X][0] +((bbox[X][2])/2))
+                    objectydiffx = float(bbox[X][0] +((bbox[X][2])/2))
+                    objectxmid = bbox[X][2] + objectxmid
+
+                    key = 1
+                    error = 640 - objectydiffx
+                    print('error',error)
+
+
+                else:
+                    pass
+    elif len(classIds) == 0:
+        print('bottle not dectected reposition ')
+        pass
+    # print('key',key)
+    # cv2.imshow("Output",img)
+    # cv2.waitKey(0)
+def detection1():
+    def find_bottle():
+
+        if (len(classIds)) ==1:
+            if classId == 44:
+                camstart = threading.Thread(target=dectectedbottle)
+                camstart.start()
+
+                engine = pyttsx3.init()
+                engine.setProperty("rate", 150)
+                engine.say('bottle dectected')
+                engine.runAndWait()
+                time.sleep(1)
+
+
+
+
+        elif (len(classIds)) > 1:
+            print('count2')
+            indices = []
+
+            for i in range(len(classIds)):
+                if classIds[i] == 44:
+                    print('there is a 44 in ',i)
+                    indices.append(i)
+                    camstart = threading.Thread(target=dectectedbottle)
+                    camstart.start()
+
+                    engine = pyttsx3.init()
+                    engine.setProperty("rate", 150)
+                    engine.say('bottle dectected')
+                    engine.runAndWait()
+                    time.sleep(1)
+
+    def find_person():
+        if (len(classIds)) ==1:
+            if classId == 1:
+                camstart = threading.Thread(target=dectectedpeople)
+                camstart.start()
+
+                engine = pyttsx3.init()
+                engine.setProperty("rate", 150)
+                engine.say('people dectected please be careful')
+                engine.runAndWait()
+                time.sleep(1)
+
+        elif (len(classIds)) > 1:
+            print('count2')
+            indices = []
+
+            for i in range(len(classIds)):
+                if classIds[i] == 1:
+                    camstart = threading.Thread(target=dectectedpeople)
+                    camstart.start()
+                    print('there is a 44 in ',i)
+                    indices.append(i)
+                    engine = pyttsx3.init()
+                    engine.setProperty("rate", 150)
+                    engine.say('people dectected please be careful')
+                    engine.runAndWait()
+                    time.sleep(1)
+    while True:
+        thres = 0.50 # Threshold to detect object
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+        classNames= []
+        classFile = 'coco.names'
+        with open(classFile,'rt') as f:
+            classNames = f.read().rstrip('\n').split('\n')
+
+        configPath = 'ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+        weightsPath = 'frozen_inference_graph.pb'
+
+        net = cv2.dnn_DetectionModel(weightsPath,configPath)
+        net.setInputSize(320,320)
+        net.setInputScale(1.0/ 127.5)
+        net.setInputMean((127.5, 127.5, 127.5))
+        net.setInputSwapRB(True)
+
+
+        classIds, confs, bbox = net.detect(img,confThreshold=thres)
+
+
+        if len(classIds) != 0:
+            for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
+                cv2.rectangle(img,box,color=(0,255,0),thickness=2)
+                cv2.putText(img,classNames[classId-1].upper(),(box[0]+10,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+                cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+            if bottlekey == 1 and personkey == 1:
+                print('1')
+                find_bottle()
+                find_person()
+
+            elif bottlekey == 1 and personkey == 0:
+                print('2')
+                find_bottle()
+            elif bottlekey == 0 and personkey == 1:
+                print('2')
+                find_person()
+            elif bottlekey == 0 and personkey == 0:
+                print('dectection stop')
+                break
+
+            else:
+                print(bottlekey)
+                print(personkey)
+                print('fail')
+                break
+        # cv2.imshow("Output",img)
+        if cv2.waitKey(1) & 0xFF == ord('l'):
+            cv2.destroyAllWindows()
+            break
+def vid():
+    while True:
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+        cv2.imshow('img',img)
+        if cv2.waitKey(1) & 0xFF == ord('l'):
+            cv2. destroyAllWindows()
+            break
+def sub_data_handler(sub_info):
+    global distance
+    distance = sub_info[0]
+    distance = int(distance)
+def close_pick_up():
+    ep_gripper.sub_status(freq=5, callback=sub)
+    ep_gripper.close()
+    time.sleep(1)
+    ep_gripper.unsub_status()
+def open_pickup():
+    ep_gripper.sub_status(freq=5, callback=sub)
+    ep_gripper.open()
+    time.sleep(1)
+    ep_gripper.unsub_status()
+def dectecion_bottle():
+    try:
+        while True:
+
+            detection() #get error
+
+            pcontrol_side_to_side() #robo middle of bottle
+
+            if key_2 == 1:
+                print('completed side to side prpgrame ')
+                break
+            elif key_2 == 0:
+                pass
+        print('bottle in middle')
+        time.sleep(1)
+        while True:
+            detection()
+            speed_setting() #set speed
+            print('vd',Vd)
+            print('key',key)
+            if key == 1:
+                angle()
+                pid_forward() #move forard
+                print('key_3',key_3)
+                if key_3 == 1:
+                    close_pick_up()
+                    time.sleep(1)
+                    ep_arm.move(x=0, y=180).wait_for_completed()
+                    break
+
+            elif key == 0:
+                print('bottle not found')
+
+                # ep_chassis.move(x=0.1, y=0, z=0, xy_speed=0.05).wait_for_completed()
+
+    except:
+        pass
+def screenshot():
+    global screenshotcounter
+
+    result = True
+    while(result):
+        screenshotcounter = screenshotcounter + 1
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+        cv2.imwrite("NewPicture{}.jpg".format(screenshotcounter),img)
+        result = False
+def camv2():
+    while True:
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+
+        width = int(img.shape[1] * 70 / 100)
+        height = int(img.shape[0] * 70 / 100)
+        dim = (width, height)
+
+        # resize image
+        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+
+        print('Resized Dimensions : ',resized.shape)
+        cv2.imshow('gray', resized) #gray colour
+        if cv2.waitKey(1) & 0xFF == ord('l'):
+            cv2. destroyAllWindows()
+            break
+def record():
+    fs = 31000  # Sample rate
+    seconds = 5   # Duration of recording
+    print('recording')
+    myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=1)
+    sd.wait()  # Wait until recording is finished
+    write('voice.wav', fs, myrecording)  # Save as WAV file
+    print('done')
+
+    AudioSegment.from_wav("voice.wav").export("voice1.wav", format="wav")
+def key_3():
+    def key(event):
+        global keyboard,cam_key,img
+        """shows key or tk code for the key"""
+        keyboard = event.char
+        if event.keysym == 'Escape':
+            global off
+            root.destroy()
+            off = 1
+        if keyboard == event.keysym:
+            # normal number and letter characters
+            print( 'Normal Key %r' % event.char )
+            if keyboard ==  'w':#forward
+                w1 = 50
+                w2 = 50
+                w3 = 50
+                w4 = 50
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+            elif keyboard ==  'd':#right
+                w1 = -50
+                w2 = 50
+                w3 = -50
+                w4 = 50
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+                # ep_chassis.drive_wheels(w1=w, w2=0, w3=0, w4=w)
+            elif keyboard ==  'q':#left turn
+                w1 = 50
+                w2 = 0
+                w3 = -50
+                w4 = 0
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+            elif keyboard ==  'e':#right turn
+                w1 = 0
+                w2 = 50
+                w3 = 0
+                w4 = -50
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+            elif keyboard ==  's':#backward
+                w1 = -50
+                w2 = -50
+                w3 = -50
+                w4 = -50
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+                # ep_chassis.drive_wheels(w1=-w, w2=-w, w3=-w, w4=-w)
+            elif keyboard ==  'a':#left
+                w1 = 50
+                w2 = -50
+                w3 = 50
+                w4 = -50
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+            elif keyboard == 'r':
+                key_2 = 0
+                key_3 = 0
+                arm_movement()
+                open_pickup()
+                time.sleep(1)
+                dectecion_bottle()
+            elif keyboard == 'k':
+                if bottlekey == 1 or personkey == 1:
+                    camstart = threading.Thread(target=detection1)
+                    camstart.start()
+                else:
+                    print('display')
+            elif keyboard == 'v':
+                camstart = threading.Thread(target=vid)
+                camstart.start()
+            elif keyboard == 'o':
+                open_pickup()
+            elif keyboard == 'p':
+                close_pick_up()
+            elif keyboard == 'x':
+                record()
+            elif keyboard == 'c':
+                # ep_robot.play_audio(filename="D:/bottle_photo/Nyan.wav").wait_for_completed()
+                ep_robot.play_audio(filename="voice1.wav").wait_for_completed()
+            elif keyboard == 'i':
+                camstart = threading.Thread(target=distancepc)
+                camstart.start()
+                distancerobot()
+            elif keyboard == 'l':
+                cv2.destroyAllWindows()
+            else:
+                w1 = 0
+                w2 = 0
+                w3 = 0
+                w4 = 0
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+        else:
+            # f1 to f12, shift keys, caps lock, Home, End, Delete ...
+            print( 'Special Key %r' % event.keysym )
+            if event.keysym == 'Shift_L':
+                w1 = 0
+                w2 = 0
+                w3 = 0
+                w4 = 0
+                ep_chassis.drive_wheels(w1=w1, w2=w2, w3=w3, w4=w4)
+            elif event.keysym == 'Up':
+                ep_arm.move(x=15, y=0).wait_for_completed()
+            elif event.keysym == 'Down':
+                ep_arm.move(x=-15, y=0).wait_for_completed()
+            elif event.keysym == 'Left':
+                ep_arm.move(x=0, y=15).wait_for_completed()
+            elif event.keysym == 'Right':
+                ep_arm.move(x=0, y=-15).wait_for_completed()
+            elif event.keysym == 'Return':
+                screenshot()
+            elif event.keysym == 'bracketleft':
+                global gripperangle
+                if gripperangle == 180:
+                    print('gripper angle at max ')
+                    print(gripperangle)
+                    pass
+                else:
+                    gripperangle = gripperangle + 10
+                    ep_servo.moveto(index=4, angle=gripperangle).wait_for_completed()
+                    print(gripperangle)
+            elif event.keysym == 'bracketright':
+                if gripperangle == 0:
+                    print('gripper angle at max ')
+                    pass
+                else:
+                    gripperangle = gripperangle - 10
+                    ep_servo.moveto(index=4, angle=gripperangle).wait_for_completed()
+                    print(gripperangle)
+
+    def showbottle(): #check what checkbox is being ticked
+        global bottlekey , personkey
+        answer = StringVar()
+        if var2.get() == 'no' and var1.get() == 'no':
+            answer.set ('you have selected no for both person and  bottle decetion')
+            personkey = 0
+            bottlekey = 0
+            print('1')
+        elif var2.get() == 'yes' and var1.get() == 'yes':
+            answer.set ('you have selected yes for both person and  bottle decetion ')
+            personkey = 1
+            bottlekey = 1
+            print('2')
+        elif var2.get() == 'no' and var1.get() == 'yes':
+            answer.set ('you have selected no for person but yes for bottle decetion ')
+            personkey = 0
+            bottlekey = 1
+            print('3')
+        elif var2.get() == 'yes' and var1.get() == 'no':
+            answer.set ('you have selected yes for  person but no for bottle decetion ')
+            personkey = 1
+            bottlekey = 0
+            print('4')
+
+
+        myLabel = Label(root, textvariable = answer)
+        myLabel.grid(row=6, column=1)
+        # myLabel = Label(root, text = x).grid()
+
+    root = Tk()
+    root.geometry("500x500")
+    root.title('home')
+
+    def button1():
+        global my_label
+        global button_forward
+        global button_backwadsaw
+        root.geometry("800x1400")#size of window when opening tutorial
+        root.title('tutorial window')#rename window when opening tutorial
+
+        my_img1 = ImageTk.PhotoImage(Image.open("D:/rp_ui/1.png"))#pictuce 1 to 5
+        my_img2 = ImageTk.PhotoImage(Image.open("D:/rp_ui/2.png"))
+        my_img3 = ImageTk.PhotoImage(Image.open("D:/rp_ui/3.png"))
+        my_img4 = ImageTk.PhotoImage(Image.open("D:/rp_ui/4.png"))
+        my_img5 = ImageTk.PhotoImage(Image.open("D:/rp_ui/5.png"))
+
+        image_list = [my_img1, my_img2, my_img3, my_img4, my_img5]
+
+
+
+        my_label = Label(image=my_img1)
+        my_label.grid(row=0, column=0, columnspan=3)
+
+        def forward(image_number):
+            global my_label
+            global button_forward
+            global button_back
+
+            my_label.grid_forget()
+            my_label = Label(image=image_list[image_number-1])
+            button_forward = Button(root, text=">>", command=lambda: forward(image_number+1))
+            button_back = Button(root, text="<<", command=lambda: back(image_number-1))
+
+            if image_number == 5:
+                button_forward = Button(root, text=">>", state=DISABLED)
+
+            my_label.grid(row=0, column=0, columnspan=2)
+            button_back.grid(row=1, column=0)
+            button_forward.grid(row=1, column=2)
+
+        def back(image_number):
+            global my_label
+            global button_forward
+            global button_back
+
+            my_label.grid_forget()
+            my_label = Label(image=image_list[image_number-1])
+            button_forward = Button(root, text=">>", command=lambda: forward(image_number+1))
+            button_back = Button(root, text="<<", command=lambda: back(image_number-1))
+
+            if image_number == 1:
+                button_back = Button(root, text="<<", state=DISABLED)
+
+            my_label.grid(row=0, column=0, columnspan=3)
+            button_back.grid(row=1, column=0)
+            button_forward.grid(row=1, column=2)
+
+
+
+        button_back = Button(root, text="<<", command=back, state=DISABLED)
+        button_exit = Button(root, text="Exit Program", command=root.destroy)
+        button_forward = Button(root, text=">>", command=lambda: forward(2))
+
+
+        button_back.grid(row=1, column=0)
+        button_exit.grid(row=1, column=1)
+        button_forward.grid(row=1, column=2)
+
+    title= Label(root, text ="welcome to robo master")
+    title.grid(row=0, column=0)
+
+
+    myButton = Button(root, text="tutorial!", command=button1)
+    myButton.grid(row=2, column=1,)
+    print( "Press a key (Escape key to exit):" )
+    root.bind_all('<Key>', key)
+    var1 = StringVar()
+    var2 = StringVar()
+    bottle =Checkbutton(root, text="detect bottle?", variable=var1, onvalue='yes', offvalue='no')
+    bottle.deselect()
+    bottle.grid(row=3, column=1)
+    person =Checkbutton(root, text="detect person?", variable=var2, onvalue='yes', offvalue='no')
+    person.deselect()
+    person.grid(row=4, column=1)
+
+
+    MyButton = Button(root, text="confirm detection", command=showbottle,)
+    MyButton.grid(row=5, column=1)
+    root.mainloop()
+
+
+    return
+
+if __name__ == '__main__':
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+
+
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+    ep_servo = ep_robot.servo
+    ep_sensor = ep_robot.sensor
+    ep_chassis = ep_robot.chassis
+    ep_arm = ep_robot.robotic_arm
+    ep_gripper = ep_robot.gripper
+
+    ep_camera.start_video_stream(display=False) #turn on cam
+    ep_sensor.sub_distance(freq=1, callback=sub_data_handler) #turn on sensor
+    time.sleep(1)
+    img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+    screenshotcounter = 0
+    gripperangle = 90
+    ep_servo.moveto(index=4, angle=90).wait_for_completed()
+
+
+
+    while True:
+        print('start')
+        key_3()
+        if off == 1:
+            break
+    ep_robot.close()
