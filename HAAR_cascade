@@ -1,0 +1,80 @@
+import cv2 as cv
+import time
+from robomaster import robot
+
+def sub_data_handler(sub_info):
+    global x, t0
+    distance = sub_info[0]
+    x = distance
+    # print("dis:{0}mm".format(distance))
+def sub(sub_info):
+    status = sub_info
+    print("gripper&arm status:{0}.".format(status))
+def dection():
+    ep_camera.start_video_stream(display=False)
+    count = 0
+    cv.namedWindow("dectact bottel", cv.WINDOW_NORMAL)
+    cv.resizeWindow("dectact bottel", 640, 320)
+    cv.namedWindow("Line", cv.WINDOW_NORMAL)
+    cv.resizeWindow("Line", 640, 320)
+    cv.namedWindow("gray", cv.WINDOW_NORMAL)
+    cv.resizeWindow("gray", 640, 320)
+
+    while True:
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+
+        # count = count + 1
+        # zprint(count)
+
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
+        cv.imshow("Line", img)
+        cv.imshow('gray', gray)  # gray colour
+        blur = cv.GaussianBlur(gray, (7, 7), cv.BORDER_DEFAULT)
+
+        haar_cascade = cv.CascadeClassifier('C:/bottle_photo/classifier/cascade.xml')
+        rect = haar_cascade.detectMultiScale(gray, scaleFactor=1.6, minNeighbors=1)
+        for (x, y, w, h) in rect:
+            global middle_x, middle_y
+            print('x', x)
+            cv.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
+            cv.imshow('dectact bottel', img)
+
+            middle_x = x + (w / 2)
+            middle_y = y + (h / 2)
+            print('middle_x', middle_x)
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=0.2)
+        cv.waitKey(10)
+
+    cv.destroyAllWindows()
+    ep_camera.stop_video_stream()
+    ep_robot.close()
+
+
+    haar_cascade = cv.CascadeClassifier('C:/bottle_photo/classifier/cascade.xml')
+    rect = haar_cascade.detectMultiScale(gray, scaleFactor=1.6, minNeighbors=1)
+    for (x,y,w,h) in rect:
+        print('x',x)
+        cv.rectangle(img,(x,y),(x+w,y+h),(0,255,0),thickness = 2)
+        cv.imshow('dectact bottel',img)
+
+        middle_x = x+(w/2)
+        middle_y = y+(h/2)
+        print('middle_x',middle_x)
+    img = ep_camera.read_cv2_image(strategy="newest", timeout=0.2)
+    cv.waitKey(10)
+    cv.destroyAllWindows()
+    ep_camera.stop_video_stream()
+    ep_robot.close()
+
+if __name__ == '__main__':
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+    ep_arm = ep_robot.robotic_arm
+    ep_chassis = ep_robot.chassis
+    ep_sensor = ep_robot.sensor
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+    ep_gripper = ep_robot.gripper
+
+    dection()
