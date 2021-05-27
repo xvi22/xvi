@@ -1,0 +1,31 @@
+import time
+from robomaster import robot
+import cv2
+from PIL import Image
+def frame_capture():
+    result = True
+    while(result):
+        img = ep_camera.read_cv2_image(strategy="newest", timeout=1)
+        cv2.imwrite("NewPicture.png",img)#save png file
+        result = False
+        time.sleep(0.5)
+    cv2.destroyAllWindows()
+
+
+
+if __name__ == '__main__':
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+
+    count = 1
+
+
+    ep_camera.start_video_stream(display=False)
+
+    while True:
+        frame_capture()
+        count = count + 1
+        print(count)
