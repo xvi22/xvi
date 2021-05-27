@@ -1,0 +1,143 @@
+import cv2
+from robomaster import robot
+import time
+from queue import *
+def detection():
+    detected = 0
+    global orientation
+    global error
+    global key
+    global img
+    thres = 0.51 # Threshold to detect object
+    # img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
+    while detected == 0:
+        try:
+            img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
+
+        except Empty:
+            pass
+
+
+        # print('one',img.size)
+        # if img.size == 0:
+        #     print('emp')
+        classNames= []
+        classFile = 'coco.names'
+        with open(classFile,'rt') as f:
+            classNames = f.read().rstrip('\n').split('\n')
+
+        configPath = 'ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+        weightsPath = 'frozen_inference_graph.pb'
+
+        net = cv2.dnn_DetectionModel(weightsPath,configPath)
+        net.setInputSize(320,320)
+        net.setInputScale(1.0/ 127.5)
+        net.setInputMean((127.5, 127.5, 127.5))
+        net.setInputSwapRB(True)
+
+
+        classIds, confs, bbox = net.detect(img,confThreshold=thres)
+        print('classids,bbox',classIds,bbox)
+
+
+        if len(classIds) != 0:
+            key = 0
+            for classId, confidence,box in zip(classIds.flatten(),confs.flatten(),bbox):
+                cv2.rectangle(img,box,color=(0,255,0),thickness=2)
+                cv2.circle(img,(650,360), 5, (0,0,255), -1)
+
+
+                cv2.putText(img,classNames[classId-1].upper(),(box[0]+10,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+                cv2.putText(img,str(round(confidence*100,2)),(box[0]+200,box[1]+30),
+                            cv2.FONT_HERSHEY_COMPLEX,1,(0,255,0),2)
+            if (len(classIds)) ==1:
+                if classId == 44:
+                    detected = 1
+                    key = 1
+                    print('path 1')
+                    objectymid = (bbox[0][1]+((bbox[0][3])/2))
+                    objectydiffy = float(bbox[0][1]+((bbox[0][3])/2))
+                    objectymid = bbox[0][3] + objectymid
+
+                    objectxmid = (bbox[0][0] +((bbox[0][2])/2))
+                    objectydiffx = float(bbox[0][0] +((bbox[0][2])/2))
+                    objectxmid = bbox[0][2] + objectxmid
+                    # print('objectydiffy',type(objectydiffy))
+                    # print('objectydiffx',type(objectydiffx))
+                    # print('(objectydiffx)(objectydiffy)',objectydiffx,objectydiffy)
+
+                    if abs(objectydiffx) > abs(objectydiffy):
+                        orientation = 0
+                        print('orientation',orientation)
+                    elif abs(objectydiffx) < abs(objectydiffy):
+                        orientation = 1
+                        print('orientation',orientation)
+                    else:
+                        print('why')
+                    error = 640 - objectydiffx
+                    print('error',error)
+
+
+
+            elif (len(classIds)) > 1:
+                print('path 2')
+                indices = []
+
+                for i in range(len(classIds)):
+                    if classIds[i] == 44:
+                        detected = 1
+                        print('there is a 44 in ',i)
+                        indices.append(i)
+                        print('indices',indices)
+                        X=indices[0]
+
+                        objectymid = (bbox[X][1]+((bbox[X][3])/2))
+                        objectydiffy = float(bbox[X][1]+((bbox[X][3])/2))
+                        objectymid = bbox[X][3] + objectymid
+
+                        objectxmid = (bbox[X][0] +((bbox[X][2])/2))
+                        objectydiffx = float(bbox[X][0] +((bbox[X][2])/2))
+                        objectxmid = bbox[X][2] + objectxmid
+
+                        key = 1
+                        error = 640 - objectydiffx
+                        print('error',error)
+                        if objectydiffx > objectydiffy:
+                            orientation = 0
+                            print('orientation',orientation)
+                        elif objectydiffx < objectydiffy:
+                            orientation = 1
+                            print('orientation',orientation)
+
+                    else:
+                        pass
+
+    # print('key',key)
+    cv2.imshow("Output",img)
+    cv2.waitKey(1) & 0xFF == ord('l')
+
+    # cv2.waitKey(0)
+if __name__ == '__main__':
+    distance = 0
+    Vd = 0
+    key_2 = 0
+    key_3 = 0
+
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+    ep_vision = ep_robot.vision
+    ep_camera = ep_robot.camera
+    ep_servo = ep_robot.servo
+    ep_sensor = ep_robot.sensor
+    ep_chassis = ep_robot.chassis
+    ep_arm = ep_robot.robotic_arm
+    ep_gripper = ep_robot.gripper
+
+    print('starting')
+
+
+    ep_camera.start_video_stream(display=False) #turn on cam
+    time.sleep(1)
+    while True:
+        detection()
