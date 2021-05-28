@@ -6,7 +6,6 @@ from math import atan ,sin, cos, radians, pi
 from queue import *
 from PIL import Image
 from pydub import AudioSegment
-from pydub import AudioSegment
 import  pyttsx3
 import math
 import threading
@@ -82,7 +81,6 @@ def speed_setting():
         Vd = 0
         print('speed mode 4')
         key_3 = 1
-    # elif distance<80:
 def pcontrol_side_to_side():
     global key_2
     if 400 <= error <= 500:
@@ -148,7 +146,6 @@ def dectectedbottle():
         engine.save_to_file(text,'bottle.wav')
         engine.runAndWait()
         ep_robot.play_audio(filename="bottle.wav").wait_for_completed()
-        print('hi')
 def dectectedpeople():
         engine = pyttsx3.init()
         engine.setProperty("rate", 10)
@@ -156,13 +153,11 @@ def dectectedpeople():
         engine.save_to_file(text,'people.wav')
         engine.runAndWait()
         ep_robot.play_audio(filename="people.wav").wait_for_completed()
-        print('hi')
 def detection():
     global error
     global key
     global img
-    # global failcounter
-    # failcounter = 0
+   
     thres = 0.50 # Threshold to detect object
     try:
         img = ep_camera.read_cv2_image(strategy="newest", timeout=0.5)
@@ -213,16 +208,12 @@ def detection():
                 objectxmid = (bbox[0][0] +((bbox[0][2])/2))
                 objectydiffx = float(bbox[0][0] +((bbox[0][2])/2))
                 objectxmid = bbox[0][2] + objectxmid
-                # print('objectydiffy',type(objectydiffy))
-                # print('objectydiffx',type(objectydiffx))
-                # print('(objectydiffx)(objectydiffy)',objectydiffx,objectydiffy)
+               
 
                 error = 640 - objectydiffx
                 print('error',error)
             elif classId != 44:
-                # failcounter = failcounter + 1
-                # if failcounter ==  10:
-                #     print('fail')
+                
                 pass
 
 
@@ -256,7 +247,6 @@ def detection():
     elif len(classIds) == 0:
         print('bottle not dectected reposition ')
         pass
-    # print('key',key)
     # cv2.imshow("Output",img)
     # cv2.waitKey(0)
 def detection1():
@@ -426,7 +416,6 @@ def dectecion_bottle():
             elif key == 0:
                 print('bottle not found')
 
-                # ep_chassis.move(x=0.1, y=0, z=0, xy_speed=0.05).wait_for_completed()
 
     except:
         pass
@@ -447,7 +436,6 @@ def camv2():
         height = int(img.shape[0] * 70 / 100)
         dim = (width, height)
 
-        # resize image
         resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
 
         print('Resized Dimensions : ',resized.shape)
@@ -527,7 +515,6 @@ def key_3():
                     camstart = threading.Thread(target=detection1)
                     camstart.start()
                 else:
-                    print('display')
             elif keyboard == 'v':
                 camstart = threading.Thread(target=vid)
                 camstart.start()
@@ -597,22 +584,18 @@ def key_3():
             answer.set ('you have selected no for both person and  bottle decetion')
             personkey = 0
             bottlekey = 0
-            print('1')
         elif var2.get() == 'yes' and var1.get() == 'yes':
             answer.set ('you have selected yes for both person and  bottle decetion ')
             personkey = 1
             bottlekey = 1
-            print('2')
         elif var2.get() == 'no' and var1.get() == 'yes':
             answer.set ('you have selected no for person but yes for bottle decetion ')
             personkey = 0
             bottlekey = 1
-            print('3')
         elif var2.get() == 'yes' and var1.get() == 'no':
             answer.set ('you have selected yes for  person but no for bottle decetion ')
             personkey = 1
             bottlekey = 0
-            print('4')
 
 
         myLabel = Label(root, textvariable = answer)
