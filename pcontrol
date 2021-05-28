@@ -1,0 +1,69 @@
+from robomaster import robot
+import time
+global x
+
+
+def sub_data_handler(sub_info):
+    global x
+    distance = sub_info[0]
+    x = distance
+    print("dis:{0}mm".format(distance))
+
+def sub(sub_info):
+    status = sub_info
+    print("gripper&arm status:{0}.".format(status))
+
+if __name__ == '__main__':
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")#conection
+
+
+    ep_arm = ep_robot.robotic_arm
+    ep_chassis = ep_robot.chassis
+    ep_sensor = ep_robot.sensor
+    ep_gripper = ep_robot.gripper #imported
+
+
+    ep_gripper.sub_status(freq=5, callback=sub)
+    ep_gripper.close()
+    ep_gripper.open()
+    time.sleep(3)
+
+    ep_arm.move(x=180, y=0).wait_for_completed()
+    ep_arm.move(x=0, y=10).wait_for_completed()
+    ep_arm.move(x=180, y=0).wait_for_completed()
+
+    ep_sensor.sub_distance(freq=5, callback=sub_data_handler)
+
+
+    time.sleep(2)
+
+    while True :
+
+        speed = (x/60)*0.5
+        if x >= 2000:
+            ep_chassis.drive_wheels(w1=200, w2=200, w3=200, w4=200)
+            print('1')
+        elif 500 < x <= 1999:
+            ep_chassis.drive_wheels(w1=100, w2=100, w3=100, w4=100)
+            print('2')
+        elif 150  < x <= 500:
+            ep_chassis.drive_wheels(w1=30, w2=30, w3=30, w4=30)
+            print('3')
+        else:
+            ep_chassis.drive_wheels(w1=0, w2=0, w3=0, w4=0)
+            print('4')
+            ep_arm.move(x=0, y=110).wait_for_completed()
+            break #robo movement
+    while True:
+        ep_gripper.close()
+        time.sleep(2)
+        ep_arm.move(x=0, y=150).wait_for_completed()
+        ep_arm.move(x=-100, y=0).wait_for_completed()
+        break
+
+    ep_chassis.move(x=0, y=0, z=180, z_speed=180).wait_for_completed()
+    ep_chassis.move(x=0.5, y=0, z=0, xy_speed=1).wait_for_completed()
+
+    print('stop')
+    ep_robot.close()
